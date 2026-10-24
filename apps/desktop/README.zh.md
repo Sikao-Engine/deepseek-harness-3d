@@ -216,7 +216,7 @@ Web 侧的对应命令是 `pnpm run dev:web` 与 `pnpm run start:web`，见[开�
 
 此 fork 提供 Windows x64 / Electron 44.7.0 预览能力，供受信任的第三方原生 producer 使用。该能力不在官方开发计划内，不承诺稳定 API 或上游合入日期。目前不包含 Godot runtime 集成；[通用视口协议](native-viewport.md)独立于 Graphics101 定义注册、输入、引擎扩展与纹理所有权。
 
-Desktop 打包时，`DSH_BUILD_NATIVE_VIEWPORT=1` 包含实验性 broker 与 preload presenter；未设置或 `0` 会从运行时 bundle 中移除这两部分，其他值导致构建失败。构建包含能力不等于授权执行：启动 Electron 时设置 `DSH_DESKTOP_NATIVE_VIEWPORT=1` 才会启用；未设置或 `0` 禁用，非法值、未包含能力的构建或未经验证的运行时导致启动失败。修改运行时配置前须完全退出 Desktop。Main 下发经过授权的 Host 环境和 preload 参数；Host 继承的环境变量不能独立启用功能。禁用时，`dshDesktop.nativeViewports` 不存在，也不注册原生视口 IPC handler。
+本 fork 默认在 Desktop 打包时包含实验性 broker 与 preload presenter；`DSH_BUILD_NATIVE_VIEWPORT=0` 仍会将这两部分从运行时 bundle 中移除，其他值导致构建失败。启动时在经验证的运行时上默认启用预览；设置 `DSH_DESKTOP_NATIVE_VIEWPORT=0` 可禁用。非法值、在未包含能力的构建上或未经验证的运行时上显式要求启用会导致启动失败。修改运行时配置前须完全退出 Desktop。Main 下发经过授权的 Host 环境和 preload 参数；Host 继承的环境变量不能独立改变功能状态。禁用时，`dshDesktop.nativeViewports` 不存在，也不注册原生视口 IPC handler。
 
 私有 Host 注册插件包内的可执行文件及其 SHA-256 摘要。Main 校验文件字节，启动时移除名称涉及凭据的环境变量，并检查 Chromium/Vulkan 的 vendor 和 device ID；无法区分型号相同的多块 GPU。原生插件执行受信任代码：包路径限制与哈希校验不提供插件沙箱，也不认证发布者。预览最多允许八个 producer 注册、两个 worker 挂载、四个原生纹理 slot，以及 2048 × 2048 的帧。
 

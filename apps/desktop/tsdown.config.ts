@@ -34,8 +34,8 @@ if (nativeViewportBuild !== undefined && nativeViewportBuild !== '0' && nativeVi
   throw new Error('desktop build: DSH_BUILD_NATIVE_VIEWPORT must be 0 or 1')
 }
 
-/** Constant folding removes experimental broker and presenter code from default runtime bundles. */
-const nativeViewportDefine = { 'process.env.DSH_BUILD_NATIVE_VIEWPORT': JSON.stringify(nativeViewportBuild ?? '0') }
+/** This fork defaults the experimental broker and presenter into runtime bundles; DSH_BUILD_NATIVE_VIEWPORT=0 still excludes them. */
+const nativeViewportDefine = { 'process.env.DSH_BUILD_NATIVE_VIEWPORT': JSON.stringify(nativeViewportBuild ?? '1') }
 const clientVersionDefine = { 'process.env.DSH_CLIENT_VERSION': JSON.stringify(clientVersion), ...nativeViewportDefine }
 
 export default defineConfig([
