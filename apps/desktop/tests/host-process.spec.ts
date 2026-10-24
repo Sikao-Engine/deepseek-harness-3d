@@ -88,6 +88,43 @@ afterEach(async () => {
 })
 
 describe('desktop host process', () => {
+  it('overrides inherited viewport authorization when no receiver is installed', async () => {
+    const runtime = projectWithHost(HTTP_HOST.replace('runtime: process.argv[2]',
+      'nativeViewport: process.env.DSH_DESKTOP_NATIVE_VIEWPORT, runtime: process.argv[2]'))
+    const host = hostProcess(runtime, runtime, undefined, { ...process.env, DSH_DESKTOP_NATIVE_VIEWPORT: '1' })
+    const { url } = await host.start()
+    expect(await (await fetch(url)).json()).toMatchObject({ nativeViewport: '0' })
+    await host.stop(true)
+  })
+
+  it('authorizes and forwards native producer registration only with an explicit receiver', async () => {
+    const runtime = projectWithHost(HTTP_HOST.replace("process.send({ type: 'ready',", `
+      if (process.env.DSH_DESKTOP_NATIVE_VIEWPORT !== '1') throw new Error('Missing viewport authorization')
+      process.send({ type: 'native-viewport-register', producer: {
+        id: 'fixture', packageRoot: process.argv[2], executable: 'fixture.exe', sha256: 'a'.repeat(64), protocol: 2, args: [], extensions: [],
+      } })
+      process.send({ type: 'ready',`))
+    const receive = vi.fn()
+    const reset = vi.fn()
+    const host = new DesktopHostProcess(process.execPath, runtime, runtime, undefined,
+      { ...process.env, DSH_DESKTOP_NATIVE_VIEWPORT: '0' }, undefined, undefined, undefined, undefined, receive, reset)
+    hosts.push(host)
+    await host.start()
+    expect(receive).toHaveBeenCalledWith({ type: 'native-viewport-register', producer: {
+      id: 'fixture', packageRoot: runtime, executable: 'fixture.exe', sha256: 'a'.repeat(64), protocol: 2, args: [], extensions: [],
+    } })
+    await host.stop(true)
+    expect(reset).toHaveBeenCalled()
+  })
+
+  it('rejects unsolicited native registration while disabled', async () => {
+    const host = hostProcess(projectWithHost(`process.send({ type: 'native-viewport-register', producer: {
+      id: 'fixture', packageRoot: process.argv[2], executable: 'fixture.exe', sha256: 'a'.repeat(64), protocol: 2, args: [], extensions: [],
+    } })`))
+    await expect(host.start()).rejects.toThrow('invalid IPC event')
+    await host.stop()
+  })
+
   it('correlates authorized file resources and rejects Host denial over private IPC', async () => {
     const host = hostProcess(projectWithHost())
     await host.start()

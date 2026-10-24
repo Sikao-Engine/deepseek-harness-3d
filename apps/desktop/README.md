@@ -212,6 +212,16 @@ The [native/renderer keyboard tests](tests/keyboard.spec.ts) compile as part of 
 
 Dependency installation does not run the locked Electron package's separate binary installer. Before running the [Windows console-signal tests](tests/windows-cli-signals.spec.ts) directly, prepare the locked Electron binary with `pnpm --filter @deepseek-ai/dsh-desktop exec install-electron` from the repository root. For downloads through a proxy, enable `ELECTRON_GET_USE_PROXY=1` for that installer process. Windows coverage aggregates require successful provisioning before the instrumented unit inventory starts.
 
+### Downstream native viewport preview
+
+This fork carries a Windows x64 / Electron 44.7.0 preview for trusted third-party native producers. It is outside the official development plan and has no stable API or upstream merge date. Godot runtime integration is not included; the [generic viewport protocol](native-viewport.md) defines registration, input, engine extensions and texture ownership independently of Graphics101.
+
+`DSH_BUILD_NATIVE_VIEWPORT=1` includes the experimental broker and preload presenter during Desktop bundling; omitted or `0` removes them from the runtime bundles. Other values fail the build. Build inclusion does not authorize execution: launch Electron with `DSH_DESKTOP_NATIVE_VIEWPORT=1` to enable the preview; omitted or `0` disables it, and malformed values, excluded builds or unqualified runtimes fail startup. Change either runtime setting only after fully quitting Desktop. Main supplies the authorized Host environment and preload argument; inherited Host variables cannot enable the feature independently. When disabled, `dshDesktop.nativeViewports` is absent and native viewport IPC handlers are not installed.
+
+The private Host registers an executable within its plugin package and its SHA-256 digest. Main verifies its bytes, spawns it without credential-named environment variables, and checks Chromium/Vulkan vendor and device IDs; identical multi-GPU adapters are not distinguished. Native plugins execute trusted code: package containment and hashing do not sandbox the plugin or authenticate its publisher. The preview permits eight registered producers, two attached workers, four native texture slots and frames up to 2048 × 2048.
+
+The path is Vulkan → D3D11 NT texture → Electron `sharedTexture.subtle` → `VideoFrame` → WebGPU. IPC carries texture handles, controls and frame metadata, not pixel buffers; this is a no-CPU-readback design, not a guarantee that Chromium performs no GPU copies. Preload owns borrowed frames. A presenter must await GPU queue completion before resolving its callback and must not retain or close the frame. Main holds at most two imported frame leases and one pending frame, dropping obsolete pending frames. Lease expiry stops the worker rather than recycling a texture still in use. Navigation, renderer or GPU loss, producer revocation, Host exit and backend shutdown stop attachments; normal backend shutdown awaits worker exit before stopping the Host. Hardware rendering and fault recovery require qualification on the exact Electron/GPU combination.
+
 ### Startup onboarding
 
 The API-key input starts empty and uses `autocomplete="new-password"` to ask Chromium not to autofill saved login passwords.
@@ -392,3 +402,11 @@ The account provider’s `embeddedPageDist` configuration adds a `dist` query pa
 ## Dev Note
 
 Pre-launch CDN and capacity decisions are tracked in the [Desktop update proposal](../../.agents/notes/proposed/feature/2026-09-08-desktop-update-policy-and-installation.md#cdn-and-capacity-qualification).
+
+### Native viewport fork maintenance proposal
+
+This proposal is non-authoritative; it does not commit the upstream project to support or delivery. Keep an upstream-tracking branch separate from the downstream integration branch, and maintain independently reviewable commits for the carrier, activation controls, lifecycle verification and engine adapters. Sync upstream weekly and immediately for security fixes; each sync must revalidate both build modes before publication. Publish fork artifacts under a separate identity and update feed, without replacing official releases or reusing upstream signing credentials.
+
+Qualify the exact dsh, Electron, plugin/native-worker protocol, GPU driver and adapter combination in each downstream release. The current Electron version check is intentional: changes to Electron or `sharedTexture.subtle` require requalification, not a relaxed range. Before releasing, cover disabled capability discovery, enabled frame presentation, resize, visibility, input ordering, unload/reload, navigation, Host restart, renderer/GPU/worker loss, slow presenters, integrity rejection and clean worker exit. Record real GPU evidence separately from unit checks; include a real application demonstration and user-output regression evidence. Do not label the transport zero-copy from worker-reported counters alone.
+
+An upstream RFC should discuss the generic registration, native-resource ownership, synchronization and failure semantics independently of Godot. Keep Graphics101 camera commands, key codes and engine-specific worker behavior in downstream adapters before proposing a stable public API. Upstream landing requires maintainer acceptance, experimental-dependency qualification, executable lifecycle tests and an identified long-term owner; downstream delivery must not depend on a promised merge date.

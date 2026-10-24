@@ -212,6 +212,16 @@ Web 侧的对应命令是 `pnpm run dev:web` 与 `pnpm run start:web`，见[开�
 
 安装工作区依赖不会自动运行锁定版本 Electron 提供的独立二进制安装程序。直接运行 [Windows 控制台信号测试](tests/windows-cli-signals.spec.ts)前，在仓库根目录执行 `pnpm --filter @deepseek-ai/dsh-desktop exec install-electron`，准备锁定版本的 Electron 二进制。通过代理下载时，为该安装进程启用 `ELECTRON_GET_USE_PROXY=1`。Windows 覆盖率检查要求安装成功后，才启动带覆盖率插桩的单元测试集。
 
+### 下游原生视口预览
+
+此 fork 提供 Windows x64 / Electron 44.7.0 预览能力，供受信任的第三方原生 producer 使用。该能力不在官方开发计划内，不承诺稳定 API 或上游合入日期。目前不包含 Godot runtime 集成；[通用视口协议](native-viewport.md)独立于 Graphics101 定义注册、输入、引擎扩展与纹理所有权。
+
+Desktop 打包时，`DSH_BUILD_NATIVE_VIEWPORT=1` 包含实验性 broker 与 preload presenter；未设置或 `0` 会从运行时 bundle 中移除这两部分，其他值导致构建失败。构建包含能力不等于授权执行：启动 Electron 时设置 `DSH_DESKTOP_NATIVE_VIEWPORT=1` 才会启用；未设置或 `0` 禁用，非法值、未包含能力的构建或未经验证的运行时导致启动失败。修改运行时配置前须完全退出 Desktop。Main 下发经过授权的 Host 环境和 preload 参数；Host 继承的环境变量不能独立启用功能。禁用时，`dshDesktop.nativeViewports` 不存在，也不注册原生视口 IPC handler。
+
+私有 Host 注册插件包内的可执行文件及其 SHA-256 摘要。Main 校验文件字节，启动时移除名称涉及凭据的环境变量，并检查 Chromium/Vulkan 的 vendor 和 device ID；无法区分型号相同的多块 GPU。原生插件执行受信任代码：包路径限制与哈希校验不提供插件沙箱，也不认证发布者。预览最多允许八个 producer 注册、两个 worker 挂载、四个原生纹理 slot，以及 2048 × 2048 的帧。
+
+渲染路径为 Vulkan → D3D11 NT texture → Electron `sharedTexture.subtle` → `VideoFrame` → WebGPU。IPC 传递纹理句柄、控制消息与帧元数据，不传像素缓冲；这是无 CPU 回读设计，不保证 Chromium 内部没有 GPU 拷贝。Preload 拥有借出的帧；presenter 必须等待 GPU 队列完成后才能 resolve 回调，不能保留或关闭帧。Main 最多持有两个已导入帧 lease 和一个待处理帧，丢弃过时待处理帧。Lease 超时会停止 worker，不会回收仍在使用的纹理。导航、renderer 或 GPU 丢失、producer 撤销、Host 退出以及 backend 关闭都会停止挂载；正常 backend 关闭会先等待 worker 退出，再停止 Host。硬件渲染与故障恢复须在确切的 Electron/GPU 组合上验证。
+
 ### 启动引导
 
 API Key 输入框初始为空，并通过 `autocomplete="new-password"` 请求 Chromium 不要自动填入已保存的登录密码。
@@ -392,3 +402,11 @@ node apps/desktop/node_modules/pnpm/bin/pnpm.mjs --dir apps/desktop run test:upd
 ## 开发备注
 
 上线前 CDN 与容量决策见[桌面更新提案](../../.agents/notes/proposed/feature/2026-09-08-desktop-update-policy-and-installation.zh.md#cdn-and-capacity-qualification)。
+
+### 原生视口 fork 维护提案
+
+本提案不是正式规范，不代表上游承诺支持或交付。将上游跟踪分支与下游集成分支分开；承载层、启用控制、生命周期验证与引擎 adapter 分别维护为可独立评审的提交。每周同步上游，安全修复立即同步；每次同步须重新验证两种构建模式后才能发布。Fork 产物使用独立身份和更新源，不覆盖官方发行版，也不复用上游签名凭据。
+
+每次下游发布须验证确切的 dsh、Electron、插件/原生 worker 协议、GPU 驱动和 adapter 组合。现有 Electron 精确版本检查是有意限制：Electron 或 `sharedTexture.subtle` 变动须重新验证，不能只放宽版本范围。发布前覆盖禁用时能力发现、启用时帧呈现、resize、可见性、输入顺序、卸载/重载、导航、Host 重启、renderer/GPU/worker 丢失、慢 presenter、完整性拒绝与 worker 干净退出。真实 GPU 证据与单元检查分别记录，附真实应用演示及用户输出回归证据。不能仅凭 worker 自报计数器宣称传输零拷贝。
+
+上游 RFC 独立于 Godot，讨论通用注册、原生资源所有权、同步和失败语义。提出稳定公共 API 前，将 Graphics101 相机命令、按键码与引擎专用 worker 行为留在下游 adapter。正式合入须满足维护者认可、实验性依赖验证、可执行生命周期测试与长期维护负责人明确；下游交付不依赖任何合入日期承诺。

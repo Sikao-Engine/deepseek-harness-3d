@@ -77,6 +77,8 @@ export interface DesktopUpdatePresentation {
 /** Product documents cannot supply update versions, package URLs, or installation authorization. */
 export interface DshDesktopProductApi {
   readonly protocolVersion: 1
+  /** Present only in explicitly enabled downstream preview builds; ordinary Desktop and Web omit it. */
+  readonly nativeViewports?: import('./native-viewport-protocol.ts').NativeViewportApi
   readonly browser: DesktopBrowserBridge
   readonly fileDrag: DesktopFileDrag
   readonly keyboard: DesktopKeyboardApi

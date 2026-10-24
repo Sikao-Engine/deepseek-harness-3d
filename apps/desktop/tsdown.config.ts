@@ -29,8 +29,14 @@ const clientEnvironment = resolveClientBuildEnvironment(process.env.DSH_CLIENT_V
 const clientVersion = clientEnvironment.DSH_CLIENT_VERSION
 if (clientVersion === undefined) throw new Error('desktop build: the client environment carries no DSH_CLIENT_VERSION')
 
-/** Inline the one public build value the Node entry reads; every other variable stays a runtime lookup. */
-const clientVersionDefine = { 'process.env.DSH_CLIENT_VERSION': JSON.stringify(clientVersion) }
+const nativeViewportBuild = process.env.DSH_BUILD_NATIVE_VIEWPORT
+if (nativeViewportBuild !== undefined && nativeViewportBuild !== '0' && nativeViewportBuild !== '1') {
+  throw new Error('desktop build: DSH_BUILD_NATIVE_VIEWPORT must be 0 or 1')
+}
+
+/** Constant folding removes experimental broker and presenter code from default runtime bundles. */
+const nativeViewportDefine = { 'process.env.DSH_BUILD_NATIVE_VIEWPORT': JSON.stringify(nativeViewportBuild ?? '0') }
+const clientVersionDefine = { 'process.env.DSH_CLIENT_VERSION': JSON.stringify(clientVersion), ...nativeViewportDefine }
 
 export default defineConfig([
   {
@@ -94,6 +100,7 @@ export default defineConfig([
     // Sandboxed Electron preloads run as CommonJS even though the application package is ESM.
     entry: { [name]: `lib/types/${name}.js` },
     plugins: [packagedImportsPlugin(preloadImports)],
+    define: nativeViewportDefine,
     outDir: 'lib',
     format: 'cjs' as const,
     codeSplitting: false,

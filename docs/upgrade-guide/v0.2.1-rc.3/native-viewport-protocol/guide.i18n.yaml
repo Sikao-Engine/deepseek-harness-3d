@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-rc.3/native-viewport-protocol/guide.md
+/:
+  en: f9abe67e00810866
+  zh: 3ae195e11f0bf76a
+/experimental-native-viewport-protocol-2:
+  en: b8d01bb384f55957
+  zh: 188b3af695d34651
+/experimental-native-viewport-protocol-2/change:
+  en: 37b769ddc39260b6
+  zh: e84bd6793cdb2cb6
+/experimental-native-viewport-protocol-2/migration:
+  en: 0287388e66b6b074
+  zh: 3f71cdcec003151d

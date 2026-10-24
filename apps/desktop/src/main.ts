@@ -63,6 +63,8 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { NATIVE_VIEWPORT_PRELOAD_ARGUMENT, resolveNativeViewportEnabled } from './native-viewport-config.ts'
+import { DesktopNativeViewports } from './native-viewport.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => {}
@@ -207,7 +209,7 @@ function platformLoginUrl(authorizeUrl: string): string {
   return url.href
 }
 
-function createWindow(preload: string, show = false, primary = false): BrowserWindow {
+function createWindow(preload: string, show = false, primary = false, nativeViewportEnabled = false): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -232,6 +234,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     } : {}),
     webPreferences: {
       preload,
+      additionalArguments: nativeViewportEnabled ? [NATIVE_VIEWPORT_PRELOAD_ARGUMENT] : [],
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -447,6 +450,11 @@ async function main(): Promise<void> {
     }
     return mainWindow
   }
+  const nativeViewportEnabled = resolveNativeViewportEnabled(process.env.DSH_BUILD_NATIVE_VIEWPORT === '1',
+    process.env.DSH_DESKTOP_NATIVE_VIEWPORT, process.platform, process.arch, process.versions.electron)
+  const nativeViewports = process.env.DSH_BUILD_NATIVE_VIEWPORT === '1' && nativeViewportEnabled
+    ? new DesktopNativeViewports(assertProductSender)
+    : undefined
   let navigation: { window: BrowserWindow; url: string; promise: Promise<void> } | undefined
   const navigateMain = (url: string): Promise<void> => {
     const window = mainWindow
@@ -470,7 +478,11 @@ async function main(): Promise<void> {
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
       hostInspectPort, { ...hostEnvironment, DSH_CLIENT_VERSION: desktopClientVersion() }, onFailure,
       primaryRuntime,
-      resources, (next) => { platformView.setSession(next) })
+      resources, (next) => { platformView.setSession(next) },
+      nativeViewports === undefined ? undefined : (event) => { nativeViewports.accept(event) },
+      nativeViewports === undefined ? undefined : () => {
+        void nativeViewports.reset().catch((error: unknown) => { console.error(error) })
+      })
     return {
       start: async () => {
         const ready = await host.start()
@@ -523,6 +535,7 @@ async function main(): Promise<void> {
       stop: async () => {
         analyticsEnabled = false
         stopAccount?.()
+        if (nativeViewports !== undefined) await nativeViewports.reset()
         try { await host.stop(requireCleanStop) }
         catch (error) {
           if (!requireCleanStop || !(error instanceof DesktopHostUncleanExitError)) throw error
@@ -1100,7 +1113,7 @@ async function main(): Promise<void> {
     }
   }
   const createMainWindow = (): BrowserWindow => {
-    const window = createWindow(appPreload, false, true)
+    const window = createWindow(appPreload, false, true, nativeViewportEnabled)
     mainWindow = window
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)

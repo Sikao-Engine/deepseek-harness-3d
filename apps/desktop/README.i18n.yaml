@@ -44,6 +44,9 @@
 /deepseek-harness-desktop/develop:
   en: faf7676ba18bbf2f
   zh: f1d7b75ad348c548
+/deepseek-harness-desktop/develop/downstream-native-viewport-preview:
+  en: e83e11f4a126bf0b
+  zh: b713efaec9772e0f
 /deepseek-harness-desktop/develop/startup-onboarding:
   en: 67dc7ef3e293236a
   zh: 1b224db684a2d1d7
@@ -77,3 +80,6 @@
 /deepseek-harness-desktop/dev-note:
   en: 8e26b460ba31f21b
   zh: fbcd0307b3867125
+/deepseek-harness-desktop/dev-note/native-viewport-fork-maintenance-proposal:
+  en: f3e27699e0f7a245
+  zh: 6d029c18b2734370

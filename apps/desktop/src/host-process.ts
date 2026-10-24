@@ -4,6 +4,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
 import type { PlatformSession } from '@deepseek-ai/dsh-deepseek-account'
 import { desktopNodeEnvironment } from './node-environment.ts'
+import { isNativeViewportHostEvent, type NativeViewportHostEvent } from './native-viewport-protocol.ts'
 
 interface ReadyEvent {
   readonly type: 'ready'
@@ -177,6 +178,8 @@ export class DesktopHostProcess {
    *   `office-skills` resources fail Host startup.
    * @param packageManager - Bundled pnpm entry and Node launcher directory, scoped to package operations.
    * @param onPlatformSession - Private credential updates for embedded Platform views.
+   * @param onNativeViewport - Authorized preview registration receiver; absent means the Host cannot register producers.
+   * @param onNativeViewportReset - Revoke preview registrations on Host failure; absent when the preview is disabled.
    */
   constructor(
     private readonly node: string,
@@ -189,6 +192,8 @@ export class DesktopHostProcess {
     private readonly packageManager?: { readonly pnpm: string; readonly nodeBin: string },
 
     private readonly onPlatformSession?: (session: PlatformSession | null) => void,
+    private readonly onNativeViewport?: (event: NativeViewportHostEvent) => void,
+    private readonly onNativeViewportReset?: () => void,
   ) {}
 
   /**
@@ -208,7 +213,9 @@ export class DesktopHostProcess {
       ...this.packageManager === undefined ? [] : [this.packageManager.pnpm, this.packageManager.nodeBin],
     ], {
       cwd: this.projectDir,
-      env: desktopNodeEnvironment(this.node, undefined, this.environment),
+      env: desktopNodeEnvironment(this.node, undefined, {
+        ...this.environment, DSH_DESKTOP_NATIVE_VIEWPORT: this.onNativeViewport === undefined ? '0' : '1',
+      }),
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
     this.child = child
@@ -216,6 +223,11 @@ export class DesktopHostProcess {
     child.stderr?.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-MAX_HOST_DIAGNOSTIC_CHARS) })
     child.stdout?.pipe(process.stdout)
     child.on('message', (message: unknown) => {
+      if (this.onNativeViewport !== undefined && isNativeViewportHostEvent(message)) {
+        try { this.onNativeViewport(message) }
+        catch (error) { this.fail(error instanceof Error ? error : new Error(String(error))); child.kill('SIGTERM') }
+        return
+      }
       if (!isDesktopHostEvent(message)) {
         this.fail(new Error('dsh desktop host sent an invalid IPC event'))
         child.kill('SIGTERM')
@@ -344,6 +356,7 @@ export class DesktopHostProcess {
   }
 
   private fail(error: Error): void {
+    this.onNativeViewportReset?.()
     this.onPlatformSession?.(null)
     this.readyReject(error)
     for (const request of this.controlRequests.values()) request.reject(error)
