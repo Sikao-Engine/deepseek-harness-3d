@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-executor-native",
   "description": "Native tool execution plugin",
-  "version": "0.2.1-dev1",
+  "version": "0.2.1-dev.2",
   "publishConfig": {
     "access": "public"
   },

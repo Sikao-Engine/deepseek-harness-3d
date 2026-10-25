@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-fs-local",
   "description": "Local-filesystem implementation of the DeepSeek Harness filesystem seam (ctx.fs)",
-  "version": "0.2.1-dev1",
+  "version": "0.2.1-dev.2",
   "publishConfig": {
     "access": "public"
   },
