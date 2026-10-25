@@ -172,17 +172,14 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
 }
 
 /**
- * Report whether one environment carries every setting bucket listing needs.
+ * Report whether one environment names the selected deployment's upload bucket.
  * @param {NodeJS.ProcessEnv} env - Upload environment.
- * @returns {boolean} True when the selected deployment's bucket and credential settings are all non-empty.
+ * @returns {boolean} True when the deployment's bucket setting is non-empty.
  */
-export function hasDesktopUploadSettings(env) {
+export function hasDesktopUploadBucket(env) {
   const deployment = UPDATE_ENVIRONMENTS[resolveDesktopAutoUpdateEnvironment(env)]
-  return [deployment.bucketEnvName, deployment.secretIdEnvName, deployment.secretKeyEnvName]
-    .every(name => {
-      const value = env[name]?.trim()
-      return value !== undefined && value !== ''
-    })
+  const bucket = env[deployment.bucketEnvName]?.trim()
+  return bucket !== undefined && bucket !== ''
 }
 
 /**

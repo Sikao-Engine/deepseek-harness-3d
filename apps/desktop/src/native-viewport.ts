@@ -175,7 +175,9 @@ export class DesktopNativeViewports {
     this.sessions.set(v.generation, v)
     worker.once('error', (error) => { this.fail(v, error) })
     worker.once('exit', (code) => { if (v.stopping === undefined) this.fail(v, new Error(`Native worker exited (${String(code)})`)) })
-    worker.stderr.on('data', () => { this.event(v, { type: 'log', message: 'Native worker diagnostic output' }) })
+    // DEBUG (black-screen investigation): forward worker stderr content so the
+    // engine-side [dsh-slot]/[dsh-debug] traces are visible in the desktop log.
+    worker.stderr.on('data', (chunk: Buffer) => { for (const line of chunk.toString('utf8').split(/\r?\n/u)) if (line.trim()) this.event(v, { type: 'log', message: line.trim().slice(0, 2000) }) })
     createInterface({ input: worker.stdout }).on('line', (line) => {
       try {
         if (line.length > 16384) throw new Error('Native worker message exceeds protocol limit')
@@ -203,14 +205,16 @@ export class DesktopNativeViewports {
             || Number(m.width) < 1 || Number(m.height) < 1 || Number(m.width) > 2048 || Number(m.height) > 2048
             || typeof m.handle !== 'string' || !/^\d{1,20}$/u.test(m.handle)) throw new Error('Invalid native frame')
           const frame = { ...m, generation: v.generation } as Frame
+          if (process.env.DSH_NATIVE_VIEWPORT_TRACE) console.error('[nv-trace]', JSON.stringify({ frame: { epoch: frame.epoch, slot: frame.slot, frameId: frame.frameId, window: frame.window ?? 0, width: frame.width, height: frame.height, inputSeq: frame.inputSeq }, state: { frameId: v.frameId, inputSeq: v.inputSeq, leases: [...v.leases.values()].map(lease => ({ epoch: lease.frame.epoch, slot: lease.frame.slot, frameId: lease.frame.frameId, window: lease.frame.window ?? 0 })), queued: v.queued === undefined ? undefined : { epoch: v.queued.epoch, slot: v.queued.slot, frameId: v.queued.frameId, window: v.queued.window ?? 0 }, windows: [...v.windows.entries()].map(([id, entry]) => ({ window: id, epoch: entry.epoch, slots: entry.slots })) } }))
           const windowId = frame.window ?? 0
           const win = v.windows.get(windowId)
-          if (win === undefined || frame.slot >= win.slots) throw new Error('Native worker frame references an unannounced window or slot')
+          if (win === undefined || frame.slot >= win.slots) throw new Error(`Native worker frame references an unannounced window or slot (frame window ${String(frame.window ?? 0)} slot ${String(frame.slot)}; announced: ${JSON.stringify([...v.windows.entries()].map(([id, entry]) => [id, entry.epoch, entry.slots]))})`)
           const sameWindow = (other: Frame | undefined): boolean => (other?.window ?? 0) === windowId
-          if (frame.frameId <= v.frameId || frame.epoch < 1 || frame.epoch < win.epoch
-            || frame.inputSeq > v.inputSeq || [...v.leases.values()].some(
-            lease => (lease.frame.window ?? 0) === windowId && lease.frame.slot === frame.slot)
-            || (sameWindow(v.queued) && v.queued?.slot === frame.slot)) throw new Error('Native worker reused frame identity or leased slot')
+          if (frame.frameId <= v.frameId) throw new Error(`Native worker frameId not increasing (frame ${String(frame.frameId)} <= last ${String(v.frameId)}; frame ${JSON.stringify({ epoch: frame.epoch, slot: frame.slot, window: windowId })}; leases: ${JSON.stringify([...v.leases.values()].map(lease => ({ epoch: lease.frame.epoch, slot: lease.frame.slot, frameId: lease.frame.frameId, window: lease.frame.window ?? 0 })))}; queued: ${JSON.stringify(v.queued === undefined ? undefined : { epoch: v.queued.epoch, slot: v.queued.slot, frameId: v.queued.frameId, window: v.queued.window ?? 0 })})`)
+          if (frame.epoch < 1 || frame.epoch < win.epoch) throw new Error(`Native worker frame epoch regressed (frame epoch ${String(frame.epoch)} < announced ${String(win.epoch)}; frame ${JSON.stringify({ slot: frame.slot, window: windowId, frameId: frame.frameId })}; windows: ${JSON.stringify([...v.windows.entries()].map(([id, entry]) => ({ window: id, epoch: entry.epoch, slots: entry.slots })))})`)
+          if (frame.inputSeq > v.inputSeq) throw new Error(`Native worker frame inputSeq ahead of broker (frame ${String(frame.inputSeq)} > broker ${String(v.inputSeq)})`)
+          if ([...v.leases.values()].some(lease => (lease.frame.window ?? 0) === windowId && lease.frame.slot === frame.slot)
+            || (sameWindow(v.queued) && v.queued?.slot === frame.slot)) throw new Error(`Native worker reused frame identity or leased slot (frame ${JSON.stringify({ epoch: frame.epoch, slot: frame.slot, frameId: frame.frameId, window: windowId })}; leases: ${JSON.stringify([...v.leases.values()].map(lease => ({ epoch: lease.frame.epoch, slot: lease.frame.slot, frameId: lease.frame.frameId, window: lease.frame.window ?? 0 })))}; queued: ${JSON.stringify(v.queued === undefined ? undefined : { epoch: v.queued.epoch, slot: v.queued.slot, frameId: v.queued.frameId, window: v.queued.window ?? 0 })})`)
           if (frame.epoch > win.epoch && ([...v.leases.values()].some(lease => (lease.frame.window ?? 0) === windowId) || sameWindow(v.queued))) throw new Error('Native worker resized a leased surface')
           v.frameId = frame.frameId; win.epoch = frame.epoch
           v.offered++

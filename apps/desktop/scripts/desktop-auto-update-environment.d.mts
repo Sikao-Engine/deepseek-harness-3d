@@ -79,6 +79,13 @@ export function resolveDesktopAutoUpdateConfig(
 ): DesktopAutoUpdateConfig
 
 /**
+ * Report whether one environment names the selected deployment's upload bucket.
+ * @param env - Upload environment.
+ * @returns True when the deployment's bucket setting is non-empty.
+ */
+export function hasDesktopUploadBucket(env: NodeJS.ProcessEnv): boolean
+
+/**
  * Resolve the public updater URL and private COS destination for one upload target.
  * @param env - Upload environment.
  * @param platform - Target Node.js platform.
