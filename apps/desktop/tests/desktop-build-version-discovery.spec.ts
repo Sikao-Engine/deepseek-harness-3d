@@ -81,6 +81,33 @@ describe('desktop build version discovery', () => {
       .resolves.toBe(`${PRERELEASE}.${DATE}.5`)
   })
 
+  it('numbers from local artifacts when the update origin is set without upload settings', async () => {
+    const artifactsRoot = await artifactsWith([`deepseek-harness-${PRERELEASE}.${DATE}.2-win-x64.exe`])
+    await expect(suggestDesktopBuildVersion({
+      productVersion: PRERELEASE, target: 'win-x64', date: DATE, artifactsRoot,
+      environment: {
+        DSH_DESKTOP_AUTO_UPDATE_ENV: 'test',
+        DOWNLOAD_TEST_ORIGIN: 'https://download.example.com',
+        DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef',
+      },
+    })).resolves.toBe(`${PRERELEASE}.${DATE}.3`)
+  })
+
+  it('rejects an invalid origin once every upload setting is present', async () => {
+    const artifactsRoot = await artifactsWith([])
+    await expect(suggestDesktopBuildVersion({
+      productVersion: PRERELEASE, target: 'win-x64', date: DATE, artifactsRoot,
+      environment: {
+        DSH_DESKTOP_AUTO_UPDATE_ENV: 'test',
+        DOWNLOAD_TEST_ORIGIN: 'not-an-origin',
+        DOWNLOAD_TEST_RELEASE_ID: '0123456789abcdef0123456789abcdef',
+        DOWNLOAD_TEST_COS_BUCKET: 'bucket',
+        DOWNLOAD_TEST_COS_SECRET_ID: 'secret-id',
+        DOWNLOAD_TEST_COS_SECRET_KEY: 'secret-key',
+      },
+    })).rejects.toThrow(/absolute HTTPS origin/u)
+  })
+
   it('counts unsigned Windows artifacts written under their own suffix', async () => {
     const artifactsRoot = await artifactsWith([
       `deepseek-harness-${PRERELEASE}.${DATE}.2-win-x64-unsigned.exe`,

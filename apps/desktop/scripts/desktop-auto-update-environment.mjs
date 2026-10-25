@@ -172,9 +172,23 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
 }
 
 /**
+ * Report whether one environment carries every setting bucket listing needs.
+ * @param {NodeJS.ProcessEnv} env - Upload environment.
+ * @returns {boolean} True when the selected deployment's bucket and credential settings are all non-empty.
+ */
+export function hasDesktopUploadSettings(env) {
+  const deployment = UPDATE_ENVIRONMENTS[resolveDesktopAutoUpdateEnvironment(env)]
+  return [deployment.bucketEnvName, deployment.secretIdEnvName, deployment.secretKeyEnvName]
+    .every(name => {
+      const value = env[name]?.trim()
+      return value !== undefined && value !== ''
+    })
+}
+
+/**
  * Resolve the public updater URL and private COS destination for one upload target.
  * @param {NodeJS.ProcessEnv} env - Upload environment.
- * @param {NodeJS.Platform} platform - Target Node.js platform.
+ * @param {NodeJS.Process} platform - Target Node.js platform.
  * @param {string} arch - Target Node.js architecture.
  * @returns {{ environment: 'test' | 'production', channel: 'nightly' | 'latest', target: 'mac-arm64' | 'mac-x64' | 'win-x64', origin: string, publicUrl: string, keyPrefix: string, binaryKeyPrefix: string, bucket: string, secretIdEnvName: string, secretKeyEnvName: string }} Resolved upload configuration.
  * @throws {Error} When the selected deployment lacks a bucket or valid updater configuration.
