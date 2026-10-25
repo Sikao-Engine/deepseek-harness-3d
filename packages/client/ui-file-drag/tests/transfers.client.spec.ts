@@ -18,6 +18,7 @@ const blobSource = () => ({ kind: 'blob' as const, blob: new Blob(['%PDF-origina
 const signal = () => new AbortController().signal
 const native = (): DesktopFileDrag => ({
   prepare: vi.fn(async () => 'handle' as FileDragHandle), cancel: vi.fn(), start: vi.fn(async () => true), release: vi.fn(),
+  getPathForFile: vi.fn(() => ''),
 })
 function transfer(): DataTransfer {
   const data = new Map<string, string>()

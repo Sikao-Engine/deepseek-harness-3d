@@ -29,6 +29,9 @@ function createProductApi(): DshDesktopProductApi {
       release: (handle) => { void ipcRenderer.invoke(DESKTOP_IPC.fileDragRelease, handle).catch((_error: unknown) => {
         // Main-process shutdown also releases every prepared file.
       }) },
+      getPathForFile: (file) => {
+        try { return webUtils.getPathForFile(file) } catch { return '' }
+      },
     },
     deviceInfo: () => ipcRenderer.invoke(DESKTOP_IPC.deviceInfo) as Promise<string>,
     keyboard: {

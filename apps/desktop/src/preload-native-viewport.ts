@@ -10,6 +10,7 @@ import { NATIVE_VIEWPORT_IPC as IPC, type NativeViewportApi, type NativeViewport
 export function createNativeViewportApi(): NativeViewportApi {
   const frames = new Map<string, (frame: VideoFrame, ticket: NativeViewportTicket) => Promise<void>>()
   const events = new Map<string, (event: Record<string, unknown>) => void>()
+  const pendingEvents = new Map<string, Record<string, unknown>[]>()
   ipcRenderer.on(IPC.frame, (_event, ticket: NativeViewportTicket, transfer: Electron.SharedTextureTransfer) => {
     void present(ticket, transfer).catch((error: unknown) => {
       console.error('Native viewport frame cleanup failed; attachment stopped', error)
@@ -32,17 +33,34 @@ export function createNativeViewportApi(): NativeViewportApi {
     }
   }
   ipcRenderer.on(IPC.event, (_event, generation: string, data: Record<string, unknown>) => {
-    try { events.get(generation)?.(data) }
-    catch (_error) { ipcRenderer.send(IPC.error, generation) }
+    try {
+      const handler = events.get(generation)
+      if (handler !== undefined) handler(data)
+      else {
+        const pending = pendingEvents.get(generation) ?? []
+        if (pending.length >= 256) {
+          pendingEvents.delete(generation)
+          ipcRenderer.send(IPC.error, generation)
+          return
+        }
+        pending.push(data)
+        pendingEvents.set(generation, pending)
+      }
+    } catch (_error) { ipcRenderer.send(IPC.error, generation) }
   })
   return {
     capabilities: { supported: process.platform === 'win32' && process.sandboxed && process.contextIsolated && typeof sharedTexture.subtle.finishTransferSharedTexture === 'function', protocol: 2 },
     list: () => ipcRenderer.invoke(IPC.list) as Promise<readonly NativeViewportDescriptor[]>,
-    attach: id => ipcRenderer.invoke(IPC.attach, id) as Promise<{ generation: string; backend: string }>,
+    attach: id => ipcRenderer.invoke(IPC.attach, id) as Promise<{ generation: string; backend: string; features: readonly string[] }>,
+    spawn: request => ipcRenderer.invoke(IPC.spawn, request) as Promise<{
+      generation: string
+      backend: string
+      features: readonly string[]
+    }>,
     control: (generation, data) => { ipcRenderer.send(IPC.control, generation, data) },
     dispose: async (generation) => {
       await ipcRenderer.invoke(IPC.dispose, generation)
-      frames.delete(generation); events.delete(generation)
+      frames.delete(generation); events.delete(generation); pendingEvents.delete(generation)
     },
     onFrame: (generation, callback) => {
       if (frames.has(generation)) throw new Error('Viewport presenter already registered')
@@ -51,6 +69,11 @@ export function createNativeViewportApi(): NativeViewportApi {
     },
     onEvent: (generation, callback) => {
       events.set(generation, callback)
+      const pending = pendingEvents.get(generation)
+      pendingEvents.delete(generation)
+      try {
+        for (const event of pending ?? []) callback(event)
+      } catch (_error) { ipcRenderer.send(IPC.error, generation) }
       return () => { if (events.get(generation) === callback) events.delete(generation) }
     },
   }

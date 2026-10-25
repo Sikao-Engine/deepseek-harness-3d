@@ -38,6 +38,13 @@ export interface DesktopFileDrag {
   start(this: void, handle: FileDragHandle): Promise<boolean>
   /** Release unused preparation; OS-delivered temporary files receive a bounded read grace period. @param handle - prepared file. */
   release(this: void, handle: FileDragHandle): void
+  /**
+   * Resolve the on-disk path of a File that came from an OS drop into the window.
+   * Read-only counterpart of the drag-out pipeline above; never authorizes writes.
+   * @param file - one DataTransfer file from a 'drop' event.
+   * @returns the absolute path, or '' when unavailable (non-file drops, sandbox without support).
+   */
+  getPathForFile(this: void, file: File): string
 }
 
 /**

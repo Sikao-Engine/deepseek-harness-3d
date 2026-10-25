@@ -74,6 +74,7 @@ it.each([
   const handle = 'handle' as FileDragHandle
   const desktop: DesktopFileDrag = {
     prepare: vi.fn(async () => handle), cancel: vi.fn(), start: vi.fn(() => pending.promise), release: vi.fn(),
+    getPathForFile: vi.fn(() => ''),
   }
   vi.stubGlobal('dshDesktop', { protocolVersion: 1, fileDrag: desktop })
   const { service } = await bench(language)
